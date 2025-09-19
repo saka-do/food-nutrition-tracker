@@ -120,6 +120,88 @@ class _FoodDBScreenState extends State<FoodDBScreen> {
     );
   }
 
+  Future<void> _addFoodDialog() async {
+    final nameController = TextEditingController();
+    final calController = TextEditingController();
+    final carbController = TextEditingController();
+    final proteinController = TextEditingController();
+    final fatController = TextEditingController();
+
+    await showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Add New Food"),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(labelText: "Food Name"),
+              ),
+              TextField(
+                controller: calController,
+                decoration: const InputDecoration(
+                  labelText: "Calories (per 100g)",
+                ),
+                keyboardType: TextInputType.number,
+              ),
+              TextField(
+                controller: carbController,
+                decoration: const InputDecoration(labelText: "Carbs (g)"),
+                keyboardType: TextInputType.number,
+              ),
+              TextField(
+                controller: proteinController,
+                decoration: const InputDecoration(labelText: "Protein (g)"),
+                keyboardType: TextInputType.number,
+              ),
+              TextField(
+                controller: fatController,
+                decoration: const InputDecoration(labelText: "Fat (g)"),
+                keyboardType: TextInputType.number,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (nameController.text.isEmpty ||
+                  calController.text.isEmpty ||
+                  carbController.text.isEmpty ||
+                  proteinController.text.isEmpty ||
+                  fatController.text.isEmpty) {
+                return; // simple validation
+              }
+
+              final newFood = FoodItem(
+                name: nameController.text,
+                calories: double.parse(calController.text),
+                carbs: double.parse(carbController.text),
+                protein: double.parse(proteinController.text),
+                fat: double.parse(fatController.text),
+              );
+
+              // Save in SQLite DB
+              await FoodDatabase.instance.createFood(newFood);
+
+              // Reload the food list
+              _loadFoods();
+
+              Navigator.pop(context);
+            },
+            child: const Text("Save"),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -198,6 +280,10 @@ class _FoodDBScreenState extends State<FoodDBScreen> {
             ),
           ],
         ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _addFoodDialog,
+        child: const Icon(Icons.add),
       ),
     );
   }
