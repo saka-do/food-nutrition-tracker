@@ -3,6 +3,8 @@ import 'package:intl/intl.dart';
 import '../db/food_database.dart';
 import '../models/food_item.dart';
 import '../models/food_log.dart';
+import 'package:collection/collection.dart';
+
 
 class FoodLogScreen extends StatefulWidget {
   const FoodLogScreen({super.key});
@@ -46,32 +48,67 @@ class _FoodLogScreenState extends State<FoodLogScreen> {
     });
   }
 
-  Future<void> _addLogDialog() async {
+  Future<void> _addLogDialog({FoodLog? editLog}) async {
     final allFoods = await FoodDatabase.instance.readAllFoods();
     FoodItem? selectedFood;
     final intakeController = TextEditingController();
 
+    String searchQuery = "";
+    List<FoodItem> filteredFoods = allFoods; // initially all foods
+
+    // Pre-fill if editing
+    if (editLog != null) {
+      selectedFood = allFoods.firstWhereOrNull((f) => f.name == editLog.food);
+      intakeController.text = editLog.intake.toString();
+    }
+
     await showDialog(
       context: context,
-      builder: (_) => StatefulBuilder(
+      builder: (BuildContext contextDialog) => StatefulBuilder(
         builder: (context, setStateDialog) => AlertDialog(
-          title: const Text("Add Food Log"),
+          title: Text(editLog == null ? "Add Food Log" : "Edit Food Log"),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // Search Field
+              TextField(
+                decoration: const InputDecoration(
+                  labelText: "Search Food",
+                  prefixIcon: Icon(Icons.search),
+                ),
+                onChanged: (val) {
+                  setStateDialog(() {
+                    searchQuery = val.toLowerCase();
+                    filteredFoods = allFoods
+                        .where(
+                          (f) => f.name.toLowerCase().contains(searchQuery),
+                        )
+                        .toList();
+
+                    // Reset selectedFood if it no longer exists in filteredFoods
+                    if (selectedFood != null &&
+                        !filteredFoods.contains(selectedFood)) {
+                      selectedFood = null;
+                    }
+                  });
+                },
+              ),
+              const SizedBox(height: 10),
+
+              // Food Dropdown
               DropdownButton<FoodItem>(
                 hint: const Text("Select Food"),
                 value: selectedFood,
-                items: allFoods.map((f) {
-                  return DropdownMenuItem(
-                    value: f,
-                    child: Text(f.name),
-                  );
+                isExpanded: true,
+                items: filteredFoods.map((f) {
+                  return DropdownMenuItem(value: f, child: Text(f.name));
                 }).toList(),
                 onChanged: (f) {
                   setStateDialog(() => selectedFood = f);
                 },
               ),
+
+              // Intake field
               TextField(
                 controller: intakeController,
                 decoration: const InputDecoration(labelText: "Intake (grams)"),
@@ -81,16 +118,16 @@ class _FoodLogScreenState extends State<FoodLogScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(contextDialog),
               child: const Text("Cancel"),
             ),
             ElevatedButton(
               onPressed: () async {
-                if (selectedFood != null &&
-                    intakeController.text.isNotEmpty) {
+                if (selectedFood != null && intakeController.text.isNotEmpty) {
                   final intake = double.parse(intakeController.text);
 
                   final log = FoodLog(
+                    id: editLog?.id, // for updates
                     date: DateFormat("yyyy-MM-dd").format(selectedDate),
                     food: selectedFood!.name,
                     intake: intake,
@@ -100,12 +137,17 @@ class _FoodLogScreenState extends State<FoodLogScreen> {
                     fat: selectedFood!.fat * intake / 100,
                   );
 
-                  await FoodDatabase.instance.createLog(log);
+                  if (editLog == null) {
+                    await FoodDatabase.instance.createLog(log);
+                  } else {
+                    await FoodDatabase.instance.updateLog(log);
+                  }
+
                   _loadLogs();
-                  Navigator.pop(context);
+                  Navigator.pop(contextDialog); // close dialog
                 }
               },
-              child: const Text("Add"),
+              child: Text(editLog == null ? "Add" : "Update"),
             ),
           ],
         ),
@@ -119,7 +161,7 @@ class _FoodLogScreenState extends State<FoodLogScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(dateLabel),
+        title: Text("Food Log - $dateLabel"),
         actions: [
           IconButton(
             icon: const Icon(Icons.calendar_today),
@@ -140,15 +182,17 @@ class _FoodLogScreenState extends State<FoodLogScreen> {
       ),
       body: Column(
         children: [
-          // ✅ Daily Totals card with all macros
+          // Daily Totals Card
           Card(
             margin: const EdgeInsets.all(12),
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  Text("Today's Totals",
-                      style: Theme.of(context).textTheme.titleLarge),
+                  Text(
+                    "Today's Totals",
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
                   const SizedBox(height: 12),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -163,7 +207,7 @@ class _FoodLogScreenState extends State<FoodLogScreen> {
               ),
             ),
           ),
-          // ✅ Logs list
+          // Logs list
           Expanded(
             child: todayLogs.isEmpty
                 ? const Center(child: Text("No logs for this day"))
@@ -180,6 +224,18 @@ class _FoodLogScreenState extends State<FoodLogScreen> {
                           "P:${log.protein.toStringAsFixed(1)} | "
                           "F:${log.fat.toStringAsFixed(1)}",
                         ),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () async {
+                            if (log.id != null) {
+                              await FoodDatabase.instance.deleteLog(log.id!);
+                              _loadLogs();
+                            }
+                          },
+                        ),
+                        onTap: () {
+                          _addLogDialog(editLog: log);
+                        },
                       );
                     },
                   ),
@@ -187,7 +243,7 @@ class _FoodLogScreenState extends State<FoodLogScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _addLogDialog,
+        onPressed: () => _addLogDialog(),
         child: const Icon(Icons.add),
       ),
     );
@@ -196,8 +252,10 @@ class _FoodLogScreenState extends State<FoodLogScreen> {
   Widget _statBox(String label, double value) {
     return Column(
       children: [
-        Text(value.toStringAsFixed(1),
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        Text(
+          value.toStringAsFixed(1),
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
         Text(label),
       ],
     );

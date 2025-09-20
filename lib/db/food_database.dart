@@ -48,11 +48,30 @@ class FoodDatabase {
   ''');
   }
 
-  Future<FoodItem> create(FoodItem food) async {
+  Future<FoodItem> createFood(FoodItem food) async {
     final db = await instance.database;
     final id = await db.insert('food', food.toMap());
     return food..id = id;
   }
+
+  Future<int> updateFood(FoodItem food) async {
+  final db = await instance.database;
+  return await db.update(
+    'food',               // your table name
+    food.toMap(),           // convert FoodItem to Map<String, dynamic>
+    where: 'id = ?',        // update row with matching id
+    whereArgs: [food.id],
+  );
+}
+
+  Future<int> deleteFood(int id) async {
+  final db = await instance.database;
+  return await db.delete(
+    'food',           // make sure table name matches your DB
+    where: 'id = ?',
+    whereArgs: [id],
+  );
+}
 
   Future<List<FoodItem>> readAllFoods() async {
     final db = await instance.database;
@@ -67,6 +86,26 @@ class FoodDatabase {
     final id = await db.insert('food_log', log.toMap());
     return log..id = id;
   }
+
+  Future<int> updateLog(FoodLog log) async {
+  final db = await instance.database;
+  return db.update(
+    'food_log',
+    log.toMap(),
+    where: 'id = ?',
+    whereArgs: [log.id],
+  );
+}
+
+Future<int> deleteLog(int id) async {
+  final db = await instance.database;
+  return db.delete(
+    'food_log',
+    where: 'id = ?',
+    whereArgs: [id],
+  );
+}
+
 
   Future<List<FoodLog>> readLogsByDate(String date) async {
     final db = await instance.database;

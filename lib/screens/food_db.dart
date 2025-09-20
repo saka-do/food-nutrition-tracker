@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../db/food_database.dart';
 import '../models/food_item.dart';
+import '../service/food_api_service.dart';
 
 class FoodDBScreen extends StatefulWidget {
   const FoodDBScreen({super.key});
@@ -10,8 +11,9 @@ class FoodDBScreen extends StatefulWidget {
 }
 
 class _FoodDBScreenState extends State<FoodDBScreen> {
-  List<FoodItem> foods = [];
-  String searchQuery = "";
+  List<FoodItem> foods = []; // Local DB items
+  List<FoodItem> suggestions = []; // API search results
+  TextEditingController searchController = TextEditingController();
 
   @override
   void initState() {
@@ -20,47 +22,177 @@ class _FoodDBScreenState extends State<FoodDBScreen> {
   }
 
   Future<void> _loadFoods() async {
-    final allFoods = await FoodDatabase.instance.readAllFoods();
+    final dbFoods = await FoodDatabase.instance.readAllFoods();
     setState(() {
-      foods = allFoods;
+      foods = dbFoods;
     });
+  }
+
+  // Mock API call for suggestions
+  Future<void> _searchFood(String query) async {
+    final results = await FoodApiService.fetchFoodSuggestions(query);
+    setState(() => suggestions = results);
+  }
+
+  Future<void> _addFoodToDb(FoodItem food) async {
+    await FoodDatabase.instance.createFood(food);
+    searchController.clear();
+    setState(() {
+      suggestions = [];
+    });
+    _loadFoods(); // refresh local DB list
+  }
+
+  Future<void> _deleteFood(FoodItem food) async {
+    if (food.id != null) {
+      await FoodDatabase.instance.deleteFood(food.id!);
+      _loadFoods();
+    }
+  }
+
+  Future<void> _editFoodDialog(FoodItem food) async {
+    final nameController = TextEditingController(text: food.name);
+    final calController = TextEditingController(text: food.calories.toString());
+    final carbController = TextEditingController(text: food.carbs.toString());
+    final proteinController = TextEditingController(
+      text: food.protein.toString(),
+    );
+    final fatController = TextEditingController(text: food.fat.toString());
+
+    await showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text("Edit Food Item"),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: InputDecoration(labelText: "Name"),
+              ),
+              TextField(
+                controller: calController,
+                decoration: InputDecoration(labelText: "Calories"),
+                keyboardType: TextInputType.number,
+              ),
+              TextField(
+                controller: carbController,
+                decoration: InputDecoration(labelText: "Carbs"),
+                keyboardType: TextInputType.number,
+              ),
+              TextField(
+                controller: proteinController,
+                decoration: InputDecoration(labelText: "Protein"),
+                keyboardType: TextInputType.number,
+              ),
+              TextField(
+                controller: fatController,
+                decoration: InputDecoration(labelText: "Fat"),
+                keyboardType: TextInputType.number,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final updatedFood = FoodItem(
+                id: food.id,
+                name: nameController.text,
+                calories: double.parse(calController.text),
+                carbs: double.parse(carbController.text),
+                protein: double.parse(proteinController.text),
+                fat: double.parse(fatController.text),
+              );
+              await FoodDatabase.instance.updateFood(updatedFood);
+              _loadFoods();
+              Navigator.pop(context);
+            },
+            child: Text("Save"),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _addFoodDialog() async {
     final nameController = TextEditingController();
-    final caloriesController = TextEditingController();
-    final carbsController = TextEditingController();
+    final calController = TextEditingController();
+    final carbController = TextEditingController();
     final proteinController = TextEditingController();
     final fatController = TextEditingController();
 
     await showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text("Add Food Item"),
+        title: const Text("Add New Food"),
         content: SingleChildScrollView(
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              TextField(controller: nameController, decoration: const InputDecoration(labelText: "Food Name")),
-              TextField(controller: caloriesController, decoration: const InputDecoration(labelText: "Calories / 100g"), keyboardType: TextInputType.number),
-              TextField(controller: carbsController, decoration: const InputDecoration(labelText: "Carbs / 100g"), keyboardType: TextInputType.number),
-              TextField(controller: proteinController, decoration: const InputDecoration(labelText: "Protein / 100g"), keyboardType: TextInputType.number),
-              TextField(controller: fatController, decoration: const InputDecoration(labelText: "Fat / 100g"), keyboardType: TextInputType.number),
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(labelText: "Food Name"),
+              ),
+              TextField(
+                controller: calController,
+                decoration: const InputDecoration(
+                  labelText: "Calories (per 100g)",
+                ),
+                keyboardType: TextInputType.number,
+              ),
+              TextField(
+                controller: carbController,
+                decoration: const InputDecoration(labelText: "Carbs (g)"),
+                keyboardType: TextInputType.number,
+              ),
+              TextField(
+                controller: proteinController,
+                decoration: const InputDecoration(labelText: "Protein (g)"),
+                keyboardType: TextInputType.number,
+              ),
+              TextField(
+                controller: fatController,
+                decoration: const InputDecoration(labelText: "Fat (g)"),
+                keyboardType: TextInputType.number,
+              ),
             ],
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Cancel")),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
           ElevatedButton(
             onPressed: () async {
-              final food = FoodItem(
+              if (nameController.text.isEmpty ||
+                  calController.text.isEmpty ||
+                  carbController.text.isEmpty ||
+                  proteinController.text.isEmpty ||
+                  fatController.text.isEmpty) {
+                return; // simple validation
+              }
+
+              final newFood = FoodItem(
                 name: nameController.text,
-                calories: double.parse(caloriesController.text),
-                carbs: double.parse(carbsController.text),
+                calories: double.parse(calController.text),
+                carbs: double.parse(carbController.text),
                 protein: double.parse(proteinController.text),
                 fat: double.parse(fatController.text),
               );
-              await FoodDatabase.instance.create(food);
+
+              // Save in SQLite DB
+              await FoodDatabase.instance.createFood(newFood);
+
+              // Reload the food list
               _loadFoods();
+
               Navigator.pop(context);
             },
             child: const Text("Save"),
@@ -72,36 +204,82 @@ class _FoodDBScreenState extends State<FoodDBScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final filteredFoods = foods
-        .where((f) => f.name.toLowerCase().contains(searchQuery.toLowerCase()))
-        .toList();
-
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Food Database"),
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(8),
-            child: TextField(
-              decoration: const InputDecoration(labelText: "Search Food"),
-              onChanged: (value) => setState(() => searchQuery = value),
+      appBar: AppBar(title: const Text("Food Database")),
+      body: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          children: [
+            // Search field
+            TextField(
+              controller: searchController,
+              decoration: const InputDecoration(
+                labelText: "Search Food",
+                prefixIcon: Icon(Icons.search),
+              ),
+              onChanged: _searchFood,
             ),
-          ),
-          Expanded(
-            child: ListView.builder(
-              itemCount: filteredFoods.length,
-              itemBuilder: (context, index) {
-                final food = filteredFoods[index];
-                return ListTile(
-                  title: Text(food.name),
-                  subtitle: Text("C:${food.calories} | Carb:${food.carbs} | P:${food.protein} | F:${food.fat}"),
-                );
-              },
+
+            // Suggestion list
+            if (suggestions.isNotEmpty)
+              Container(
+                constraints: const BoxConstraints(maxHeight: 200),
+                child: ListView.builder(
+                  itemCount: suggestions.length,
+                  itemBuilder: (context, index) {
+                    final s = suggestions[index];
+                    return ListTile(
+                      title: Text(s.name),
+                      subtitle: Text(
+                        "C:${s.calories} | Carb:${s.carbs} | P:${s.protein} | F:${s.fat}",
+                      ),
+                      onTap: () => _addFoodToDb(s),
+                    );
+                  },
+                ),
+              ),
+
+            const SizedBox(height: 12),
+            const Divider(),
+            const SizedBox(height: 8),
+
+            // Local DB food list
+            Expanded(
+              child: foods.isEmpty
+                  ? const Center(child: Text("No foods added"))
+                  : ListView.builder(
+                      itemCount: foods.length,
+                      itemBuilder: (context, index) {
+                        final food = foods[index];
+                        return ListTile(
+                          title: Text(food.name),
+                          subtitle: Text(
+                            "C:${food.calories} | Carb:${food.carbs} | P:${food.protein} | F:${food.fat}",
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: Icon(Icons.edit),
+                                onPressed: () => _editFoodDialog(food),
+                              ),
+                              IconButton(
+                                icon: Icon(Icons.delete),
+                                onPressed: () async {
+                                  await FoodDatabase.instance.deleteFood(
+                                    food.id!,
+                                  );
+                                  _loadFoods();
+                                },
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _addFoodDialog,

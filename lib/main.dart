@@ -2,10 +2,36 @@ import 'package:flutter/material.dart';
 import 'screens/food_db.dart';
 import 'screens/food_log.dart';
 import 'screens/weekly_summary.dart';
+import 'dart:convert';
+import 'package:flutter/services.dart';
+import 'db/food_database.dart';
+import 'models/food_item.dart';
 
-void main() {
+void main() async{
+  WidgetsFlutterBinding.ensureInitialized();
+  await preloadFoodDB(); // <-- preload JSON into SQLite
   runApp(const NutritionApp());
 }
+
+Future<void> preloadFoodDB() async {
+  final existingFoods = await FoodDatabase.instance.readAllFoods();
+  if (existingFoods.isNotEmpty) return; // already preloaded
+
+  final data = await rootBundle.loadString('lib/assets/foods_data.json');
+  final List<dynamic> jsonList = jsonDecode(data);
+
+  for (var item in jsonList) {
+    final food = FoodItem(
+      name: item['name'],
+      calories: item['calories'].toDouble(),
+      carbs: item['carbs'].toDouble(),
+      protein: item['protein'].toDouble(),
+      fat: item['fat'].toDouble(),
+    );
+    await FoodDatabase.instance.createFood(food);
+  }
+}
+
 
 class NutritionApp extends StatelessWidget {
   const NutritionApp({super.key});
@@ -69,4 +95,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+  
 }
+
+
