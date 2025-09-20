@@ -37,6 +37,15 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+
+    applicationVariants.all {
+    outputs.all {
+        val variant = this@all
+        val outputImpl = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
+        outputImpl.outputFileName = "EiyoTracker-${variant.name}.apk"
+    }
+}
+
 }
 
 flutter {
