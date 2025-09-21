@@ -3,8 +3,6 @@ import 'package:intl/intl.dart';
 import '../db/food_database.dart';
 import '../models/food_item.dart';
 import '../models/food_log.dart';
-import 'package:collection/collection.dart';
-
 
 class FoodLogScreen extends StatefulWidget {
   const FoodLogScreen({super.key});
@@ -54,11 +52,11 @@ class _FoodLogScreenState extends State<FoodLogScreen> {
     final intakeController = TextEditingController();
 
     String searchQuery = "";
-    List<FoodItem> filteredFoods = allFoods; // initially all foods
+    List<FoodItem> filteredFoods = allFoods;
 
-    // Pre-fill if editing
     if (editLog != null) {
-      selectedFood = allFoods.firstWhereOrNull((f) => f.name == editLog.food);
+      selectedFood = allFoods.firstWhere((f) => f.name == editLog.food,
+          orElse: () => allFoods.first);
       intakeController.text = editLog.intake.toString();
     }
 
@@ -70,36 +68,23 @@ class _FoodLogScreenState extends State<FoodLogScreen> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Search Field
               TextField(
                 decoration: const InputDecoration(
                   labelText: "Search Food",
-                  prefixIcon: Icon(Icons.search),
                 ),
-                onChanged: (val) {
+                onChanged: (value) {
+                  searchQuery = value.toLowerCase();
                   setStateDialog(() {
-                    searchQuery = val.toLowerCase();
                     filteredFoods = allFoods
-                        .where(
-                          (f) => f.name.toLowerCase().contains(searchQuery),
-                        )
+                        .where((f) =>
+                            f.name.toLowerCase().contains(searchQuery))
                         .toList();
-
-                    // Reset selectedFood if it no longer exists in filteredFoods
-                    if (selectedFood != null &&
-                        !filteredFoods.contains(selectedFood)) {
-                      selectedFood = null;
-                    }
                   });
                 },
               ),
-              const SizedBox(height: 10),
-
-              // Food Dropdown
               DropdownButton<FoodItem>(
                 hint: const Text("Select Food"),
                 value: selectedFood,
-                isExpanded: true,
                 items: filteredFoods.map((f) {
                   return DropdownMenuItem(value: f, child: Text(f.name));
                 }).toList(),
@@ -107,8 +92,6 @@ class _FoodLogScreenState extends State<FoodLogScreen> {
                   setStateDialog(() => selectedFood = f);
                 },
               ),
-
-              // Intake field
               TextField(
                 controller: intakeController,
                 decoration: const InputDecoration(labelText: "Intake (grams)"),
@@ -123,11 +106,12 @@ class _FoodLogScreenState extends State<FoodLogScreen> {
             ),
             ElevatedButton(
               onPressed: () async {
-                if (selectedFood != null && intakeController.text.isNotEmpty) {
+                if (selectedFood != null &&
+                    intakeController.text.isNotEmpty) {
                   final intake = double.parse(intakeController.text);
 
                   final log = FoodLog(
-                    id: editLog?.id, // for updates
+                    id: editLog?.id,
                     date: DateFormat("yyyy-MM-dd").format(selectedDate),
                     food: selectedFood!.name,
                     intake: intake,
@@ -144,7 +128,7 @@ class _FoodLogScreenState extends State<FoodLogScreen> {
                   }
 
                   _loadLogs();
-                  Navigator.pop(contextDialog); // close dialog
+                  Navigator.pop(contextDialog);
                 }
               },
               child: Text(editLog == null ? "Add" : "Update"),
@@ -161,28 +145,24 @@ class _FoodLogScreenState extends State<FoodLogScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text("Food Log - $dateLabel"),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.calendar_today),
-            onPressed: () async {
-              final picked = await showDatePicker(
-                context: context,
-                initialDate: selectedDate,
-                firstDate: DateTime(2020),
-                lastDate: DateTime(2100),
-              );
-              if (picked != null) {
-                setState(() => selectedDate = picked);
-                _loadLogs();
-              }
-            },
-          ),
-        ],
+        title: GestureDetector(
+          onTap: () async {
+            final picked = await showDatePicker(
+              context: context,
+              initialDate: selectedDate,
+              firstDate: DateTime(2020),
+              lastDate: DateTime(2100),
+            );
+            if (picked != null) {
+              setState(() => selectedDate = picked);
+              _loadLogs();
+            }
+          },
+          child: Text(dateLabel), // Tap on date to change
+        ),
       ),
       body: Column(
         children: [
-          // Daily Totals Card
           Card(
             margin: const EdgeInsets.all(12),
             child: Padding(
@@ -190,7 +170,7 @@ class _FoodLogScreenState extends State<FoodLogScreen> {
               child: Column(
                 children: [
                   Text(
-                    "Today's Totals",
+                    "Totals for $dateLabel", // dynamic totals
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 12),
@@ -207,7 +187,6 @@ class _FoodLogScreenState extends State<FoodLogScreen> {
               ),
             ),
           ),
-          // Logs list
           Expanded(
             child: todayLogs.isEmpty
                 ? const Center(child: Text("No logs for this day"))
@@ -227,10 +206,8 @@ class _FoodLogScreenState extends State<FoodLogScreen> {
                         trailing: IconButton(
                           icon: const Icon(Icons.close),
                           onPressed: () async {
-                            if (log.id != null) {
-                              await FoodDatabase.instance.deleteLog(log.id!);
-                              _loadLogs();
-                            }
+                            await FoodDatabase.instance.deleteLog(log.id!);
+                            _loadLogs();
                           },
                         ),
                         onTap: () {
@@ -243,7 +220,7 @@ class _FoodLogScreenState extends State<FoodLogScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _addLogDialog(),
+        onPressed: _addLogDialog,
         child: const Icon(Icons.add),
       ),
     );

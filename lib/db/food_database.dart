@@ -132,7 +132,7 @@ Future<int> deleteLog(int id) async {
   final db = await instance.database;
 
   final result = await db.query(
-    'food_logs',
+    'food_log',
     where: 'date BETWEEN ? AND ?',
     whereArgs: [startDate, endDate],
     orderBy: 'date ASC',
@@ -149,3 +149,4 @@ Future<int> deleteLog(int id) async {
 
 
 }
+
