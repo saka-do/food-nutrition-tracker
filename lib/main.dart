@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'screens/food_db.dart';
 import 'screens/food_log.dart';
 import 'screens/weekly_summary.dart';
+import 'screens/recipe_screen.dart';
 import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'db/food_database.dart';
@@ -62,7 +63,8 @@ class _HomeScreenState extends State<HomeScreen> {
   final List<Widget> _screens = const [
     FoodDBScreen(),
     FoodLogScreen(),
-    WeeklySummaryScreen(), // ✅ added this
+    WeeklySummaryScreen(),
+    RecipeScreen(),
   ];
 
   void _onItemTapped(int index) {
@@ -76,6 +78,11 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       body: _screens[_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
+        backgroundColor: Colors.white,
+        selectedItemColor: Colors.green,
+        unselectedItemColor: Colors.grey,
+        showUnselectedLabels: true,
+        type: BottomNavigationBarType.fixed,
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
         items: const [
@@ -90,6 +97,10 @@ class _HomeScreenState extends State<HomeScreen> {
           BottomNavigationBarItem(
             icon: Icon(Icons.bar_chart),
             label: 'Weekly',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.receipt_long),
+            label: 'Recipes',
           ),
         ],
       ),
